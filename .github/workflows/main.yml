@@ -15,33 +15,50 @@ jobs:
     steps:
       # 步骤 1: 检出代码
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      # 步骤 2: 设置 Node.js 环境
+      # 步骤 2: 安装 pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      
+      # 步骤 3: 设置 Node.js 环境
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20' # 根据您的项目需求选择 Node.js 版本
+          node-version: '24' # 根据您的项目需求选择 Node.js 版本
+          cache: 'pnpm' #设置pnpm缓存
 
-      # 步骤 3: 安装依赖项
+      # 步骤 4: 安装依赖项
       - name: Install Dependencies
-        run: npm install
-
-      - name: Install Web Dependencies
-        run: npm --prefix web install
-
+        run: pnpm install --frozen-lockfile
+      
+      # 步骤 5: 构建前端
       - name: Build Web App
-        run: npm run build:web
+        run: pnpm --filter auth-inbox-web run build
 
-      # 步骤 4: 部署 Worker
-      - name: Deploy Backend for ${{ github.ref_name }}
-        run: |
-
-            # Write secrets.TOML to wrangler.toml file
-            echo '${{ secrets.TOML }}' > wrangler.toml
-
-            # Deploy the worker using Wrangler
-            npx wrangler deploy
+      # 步骤 6: 写入wrangler.toml
+      - name: write wrangler.toml
+        run: echo "$WRANGLER_TOML" > wrangler.toml
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_TOML: ${{ secrets.TOML }}
+
+      # 步骤 7: 部署 Worker
+      - name: Deploy Backend for ${{ github.ref_name }}
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          secrets: |
+            FrontEndAdminID
+            FrontEndAdminPassword
+            AI_BASE_URL
+            AI_API_KEY
+            AI_API_FORMAT
+            AI_MODEL
+        env:
+          FrontEndAdminID: ${{ secrets.FrontEndAdminID }}
+          FrontEndAdminPassword: ${{ secrets.FrontEndAdminPassword }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_FORMAT: ${{ secrets.AI_API_FORMAT }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
